@@ -68,3 +68,87 @@ void OvmsVehicleVWeUp::ShellPollControl(int verbosity, OvmsWriter* writer, OvmsC
     GetOBDStateName(me->m_obd_state),
     GetPollStateName(me->m_poll_state));
 }
+
+void OvmsVehicleVWeUp::CCanData(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int argc, const char* const* argv)
+{
+  /* Buffer for CAN data */
+  uint8_t data[10];
+
+  /* This is an eUp, get the correct device instance... */
+  OvmsVehicleVWeUp* me = GetInstance(writer);
+  
+  /* Access to comfort CAN */
+  canbus *comf_bus;
+  comf_bus = me->m_can3;
+
+  writer->printf("CCanData: %i args\n", argc);
+
+ 
+
+  /* Args are always pairs (ID + data) - i.e. allow only even number of args */
+  if ( 0 != (argc % 2)) 
+  {
+    writer->printf("Invalid number of args!\n");
+    return;
+  }
+
+  /* Go through all pairs and build a CAN message from each */
+  for(int i=0; i<argc; i += 2)
+  {
+    const char* can_id_str = argv[i];
+    const char* can_id_data_str = argv[i+1];
+    //writer->printf("%i: %s\n", i, argv[i]);
+
+    /* Get the CAN ID from the first arg string */
+    char* endp;
+    uint32_t can_id = strtoul(can_id_str, &endp, 16);
+
+    if (*endp != '\0')
+    {
+      writer->printf("Invalid CAN ID in arg %i", i);
+      return;
+    }
+
+    /* Ensure the data string has an even number of chars and does not exceed size of data */
+    size_t hexlen = strlen(can_id_data_str);
+    if ( (0U != (hexlen % 2U)) && ( (hexlen/2U) < sizeof(data)) )
+    {
+      writer->printf("Invalid number of characters in CAN data %i", i+1);
+      return;
+    }
+    
+    /* Go through data string and extract each byte (2-char hex ASCII) */
+    uint8_t pos = 0U;
+    for (size_t j=0U; j<hexlen; j += 2U) {
+      const char* digit = &can_id_data_str[j];
+      int ret = sscanf(digit, "%2hhx", &data[pos]);
+      if (1 != ret) 
+      {
+        writer->printf("Hex character conversion failed at arg %i:%i", i, j);
+        return; 
+      }
+      pos ++;
+    }
+
+    if (i == 0)
+    {
+      /* on first message, run wakeup first */
+      (void)me->CommandWakeup();
+      vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+
+    /* All data extracted, send CAN message */
+    writer->printf("CAN msg to %x: ", can_id);
+    for (int k=0; k<hexlen/2; k++)
+    {
+      writer->printf(" %02x", data[k]);
+    }
+    writer->printf("\n");
+    if (me->vweup_enable_write && !me->dev_mode) 
+    {
+      comf_bus->WriteStandard((uint16_t)can_id, hexlen/2U, data);
+    }
+  }
+
+
+}

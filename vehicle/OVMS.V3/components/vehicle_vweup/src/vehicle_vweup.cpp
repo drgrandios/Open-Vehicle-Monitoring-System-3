@@ -136,6 +136,8 @@ OvmsVehicleVWeUp::OvmsVehicleVWeUp()
   cmd->RegisterCommand("pause", "Pause polling if running", ShellPollControl);
   cmd->RegisterCommand("continue", "Continue polling if paused", ShellPollControl);
 
+  (void)cmd_xvu->RegisterCommand("ccan", "Send comfort CAN data after wakeup", CCanData, "CCanData <id> <data> <id> <data> ...", 2, 20);
+
   // Load initial config:
   ConfigChanged(NULL);
 
