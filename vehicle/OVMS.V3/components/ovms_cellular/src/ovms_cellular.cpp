@@ -1382,6 +1382,9 @@ void modem::SetCellularModemDriver(const char* ModelType)
   m_mux_channel_DATA = m_driver->GetMuxChannelDATA();
   m_mux_channel_POLL = m_driver->GetMuxChannelPOLL();
   m_mux_channel_CMD = m_driver->GetMuxChannelCMD();
+
+  if (m_model != "auto")
+    MyEvents.SignalEvent("system.modem.installed", NULL);
   }
 
 void modem::Ticker(std::string event, void* data)
@@ -1418,9 +1421,16 @@ void modem::IncomingMuxData(GsmMuxChannel* channel)
     }
   else if (channel->m_channel == m_mux_channel_NMEA)
     {
-    while (channel->m_buffer.HasLine() >= 0)
+    if (m_nmea != NULL)
       {
-      if (m_nmea != NULL) m_nmea->IncomingLine(channel->m_buffer.ReadLine());
+      while (channel->m_buffer.HasLine() >= 0)
+        {
+        m_nmea->IncomingLine(channel->m_buffer.ReadLine());
+        }
+      }
+    else
+      {
+      channel->m_buffer.EmptyAll();
       }
     }
   else if (channel->m_channel == m_mux_channel_DATA)
@@ -1617,7 +1627,7 @@ void modem_setstate(int verbosity, OvmsWriter* writer, OvmsCommand* cmd, int arg
     {
     if (strcmp(statename,ModemState1Name((modem::modem_state1_t)newstate)) == 0)
       {
-      writer->printf("Set modem to state: %s",statename);
+      writer->printf("Set modem to state: %s\n",statename);
       MyModem->SendSetState1((modem::modem_state1_t)newstate);
       return;
       }
